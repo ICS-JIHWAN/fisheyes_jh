@@ -7,6 +7,7 @@ from core.engine import Trainer
 
 if __name__ == '__main__':
     torch.cuda.set_device(1)
+    print('test github')
     #
     args = get_args_parser().parse_args()
     cfg = Config.fromfile(args.conf_file)
