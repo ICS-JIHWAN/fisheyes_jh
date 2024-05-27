@@ -22,6 +22,12 @@ def load_yaml(file_path):
     return data_dict
 
 
+def save_yaml(data_dict, save_path):
+    """Save data to yaml file"""
+    with open(save_path, 'w') as f:
+        yaml.safe_dump(data_dict, f, sort_keys=False)
+
+
 def write_tbloss(tblogger, loss_dict, step):
     tblogger.add_scalars("training/loss/model", {
         'loss_G_A': loss_dict['loss_G_A'][-1],
@@ -45,11 +51,9 @@ def write_tbimg(tblogger, imgs, step, type='train'):
         LOGGER.warning('WARNING: Unknown image type to visualize.\n')
 
 
-def write_tbloss_box(tblogger, loss_dict, step):
-    tblogger.add_scalar("train/loss_G_A", loss_dict['loss_G_A'][-1], step + 1)
-    tblogger.add_scalar("train/loss_G_B", loss_dict['loss_G_B'][-1], step + 1)
-    tblogger.add_scalar("train/loss_cycle_A", loss_dict['loss_cycle_A'][-1], step + 1)
-    tblogger.add_scalar("train/loss_cycle_B", loss_dict['loss_cycle_B'][-1], step + 1)
-    tblogger.add_scalar("train/loss_D_A", loss_dict['loss_D_A'][-1], step + 1)
-    tblogger.add_scalar("train/loss_D_B", loss_dict['loss_D_B'][-1], step + 1)
-    tblogger.add_scalar("train/total_loss", loss_dict['total_loss'][-1], step + 1)
+def write_tbloss_box(tblogger, loss_G, loss_D, r_mean, k1, k2, step):
+    tblogger.add_scalar("train/loss_G", loss_G, step + 1)
+    tblogger.add_scalar("train/loss_D", loss_D, step + 1)
+    tblogger.add_scalar("train/r_mean", r_mean, step + 1)
+    tblogger.add_scalar("train/k1", k1, step + 1)
+    tblogger.add_scalar("train/k2", k2, step + 1)

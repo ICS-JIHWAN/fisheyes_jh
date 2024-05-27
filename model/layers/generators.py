@@ -1,10 +1,72 @@
+import copy
+import numpy as np
 import torch
 import torch.nn as nn
 import functools
 
-# =======================================
-#       Resnet based Generator
-# =======================================
+from torchvision import models
+
+
+class ResnetGenerator(nn.Module):
+    def __init__(
+            self,
+            num_fci,
+            num_lfo
+    ):
+        super(ResnetGenerator, self).__init__()
+        self.backbone = models.resnet34(pretrained=True)
+
+        self.backbone.conv1 = nn.Conv2d(num_fci, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        self.backbone.avgpool = nn.Identity()
+        self.backbone.fc = nn.Identity()
+
+        self.model_ru = nn.Sequential(
+            nn.Conv2d(512, 256, 3, 1, 1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Conv2d(256, 128, 3, 1, 1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Conv2d(128, 64, 3, 1, 1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 128, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(128, 128, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(128, 96, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(96, 96, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(96, 66, kernel_size=4, stride=2, padding=1),
+        )
+
+        # self.model_ru = nn.Sequential(
+        #     nn.Conv2d(512, 256, 3, 1, 1),
+        #     nn.BatchNorm2d(256),
+        #     nn.ReLU(),
+        #     nn.Conv2d(256, 128, 3, 1, 1),
+        #     nn.BatchNorm2d(128),
+        #     nn.ReLU(),
+        #     nn.Conv2d(128, 64, 3, 1, 1),
+        #     nn.BatchNorm2d(64),
+        #     nn.ReLU(),
+        #     nn.ConvTranspose2d(64, 64, kernel_size=4, stride=2, padding=1),
+        #     nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
+        #     nn.ConvTranspose2d(32, 32, kernel_size=4, stride=2, padding=1),
+        #     nn.ConvTranspose2d(32, 16, kernel_size=4, stride=2, padding=1),
+        #     nn.ConvTranspose2d(16, 2, kernel_size=4, stride=2, padding=1),
+        # )
+
+    def forward(self, x):
+        output = self.backbone(x)
+        output = output.reshape(
+            output.shape[0],
+            512,
+            int(np.sqrt(output.shape[1] / 512)),
+            int(np.sqrt(output.shape[1] / 512))
+        )
+        output = self.model_ru(output)
+        # output = torch.nn.functional.tanh(output) * 10
+
+        return output
+
 
 class ResnetBlock(nn.Module):
     """Define a Resnet block"""
@@ -64,65 +126,3 @@ class ResnetBlock(nn.Module):
         """Forward function (with skip connections)"""
         out = x + self.conv_block(x)  # add skip connections
         return out
-
-
-class ResnetGenerator(nn.Module):
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6,
-                 padding_type='reflect'):
-        """Construct a Resnet-based generator
-        Parameters:
-            input_nc (int)      -- the number of channels in input images
-            output_nc (int)     -- the number of channels in output images
-            ngf (int)           -- the number of filters in the last conv layer
-            norm_layer          -- normalization layer
-            use_dropout (bool)  -- if use dropout layers
-            n_blocks (int)      -- the number of ResNet blocks
-            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
-        """
-        assert (n_blocks >= 0)
-        super(ResnetGenerator, self).__init__()
-
-        # Determine if bias will be used for conv layer
-        if type(norm_layer) == functools.partial:
-            use_bias = (norm_layer.func == nn.InstanceNorm2d)
-        else:
-            use_bias = (norm_layer == nn.InstanceNorm2d)
-
-        # ------ Construct a resnet based generator ------
-        # ---- Encoder Part
-        model = [nn.ReflectionPad2d(3),
-                 nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
-                 norm_layer(ngf),
-                 nn.ReLU(True)]
-
-        # ---- Downsampling and Resnet
-        n_downsampling = 2
-        for i in range(n_downsampling):
-            mult = 2 ** i
-            model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                      norm_layer(ngf * mult * 2),
-                      nn.ReLU(True)]
-
-        mult = 2 ** n_downsampling
-        for i in range(n_blocks):
-            model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer,
-                                  use_dropout=use_dropout, use_bias=use_bias)]
-
-        # ---- Decoder Part
-        for i in range(n_downsampling):
-            mult = 2 ** (n_downsampling - i)
-            model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
-                                         kernel_size=3, stride=2,
-                                         padding=1, output_padding=1,
-                                         bias=use_bias),
-                      norm_layer(int(ngf * mult / 2)),
-                      nn.ReLU(True)]
-        model += [nn.ReflectionPad2d(3)]
-        model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
-        model += [nn.Tanh()]
-
-        self.model = nn.Sequential(*model)
-
-    def forward(self, input):
-        """Standard forward"""
-        return self.model(input)

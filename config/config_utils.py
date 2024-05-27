@@ -8,6 +8,8 @@ import os.path as osp
 import shutil
 import sys
 import tempfile
+
+from pathlib import Path
 from importlib import import_module
 from addict import Dict
 
@@ -59,7 +61,9 @@ class Config(object):
 
     @staticmethod
     def fromfile(filename):
-        cfg_dict, cfg_text = Config._file2dict(filename)
+        cfg_dict, cfg_text = Config._file2dict(
+            Path(__file__).parent / filename
+        )
         return Config(cfg_dict, cfg_text=cfg_text, filename=filename)
 
     def __init__(self, cfg_dict=None, cfg_text=None, filename=None):
