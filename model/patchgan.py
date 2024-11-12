@@ -7,7 +7,7 @@ from model.layers import conv, deconv
 
 class Generator(nn.Module):
     # initializers
-    def __init__(self):
+    def __init__(self, out_ch=3):
         super(Generator, self).__init__()
         # Unet encoder
         self.conv1 = conv(3, 64, 4, bn=False, activation='lrelu')  # (B, 64, 128, 128)
@@ -27,7 +27,7 @@ class Generator(nn.Module):
         self.deconv5 = deconv(1024, 256, 4, activation='relu')  # (B, 256, 32, 32)
         self.deconv6 = deconv(512, 128, 4, activation='relu')  # (B, 128, 64, 64)
         self.deconv7 = deconv(256, 64, 4, activation='relu')  # (B, 64, 128, 128)
-        self.deconv8 = deconv(128, 3, 4, activation='tanh')  # (B, 3, 256, 256)
+        self.deconv8 = deconv(128, out_ch, 4, activation='tanh')  # (B, 3, 256, 256)
 
     # forward method
     def forward(self, input):
@@ -56,9 +56,9 @@ class Generator(nn.Module):
 
 class Discriminator(nn.Module):
     # initializers
-    def __init__(self):
+    def __init__(self, n_cls):
         super(Discriminator, self).__init__()
-        self.conv1 = conv(3, 64, 4, bn=False, activation='lrelu')
+        self.conv1 = conv(3+n_cls, 64, 4, bn=False, activation='lrelu')
         self.conv2 = conv(64, 128, 4, activation='lrelu')
         self.conv3 = conv(128, 256, 4, activation='lrelu')
         self.conv4 = conv(256, 512, 4, 1, 1, activation='lrelu')

@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
 from cmd_in import get_args_parser
-from utils.metrics import gaussuian_filter, create_color_map
+from utils.metrics import gaussuian_filter, create_color_map, flow_warp
 from utils.events import save_yaml
 from dataset.dataloader import Dataset
 from model.patchgan import Generator, Discriminator
@@ -44,8 +44,8 @@ def main(args, device):
 
     # Model
     # patchgan
-    G = Generator().to(device)
-    D = Discriminator().to(device)
+    G = Generator(out_ch=2).to(device)
+    D = Discriminator(n_cls=args.n_cls).to(device)
 
     if args.resume:
         load_model(G, torch.load(os.path.join(STORAGE, args.check_gan, 'checkpoint.pth'), map_location=device)['G'])
@@ -88,8 +88,8 @@ def main(args, device):
     g_optimizer = optim.Adam(G.parameters(), lr=args.lr, betas=args.betas)
     d_optimizer = optim.Adam(D.parameters(), lr=args.lr, betas=args.betas)
 
-    g_scheduler = optim.lr_scheduler.CosineAnnealingLR(g_optimizer, T_max=1462, eta_min=1e-6)
-    d_scheduler = optim.lr_scheduler.CosineAnnealingLR(d_optimizer, T_max=1462, eta_min=1e-5)
+    g_scheduler = optim.lr_scheduler.CosineAnnealingLR(g_optimizer, T_max=20, eta_min=1e-6)
+    d_scheduler = optim.lr_scheduler.CosineAnnealingLR(d_optimizer, T_max=20, eta_min=1e-5)
 
     # Train
     for epoch in range(args.epoch):
@@ -105,7 +105,8 @@ def main(args, device):
             fake_label = torch.zeros((B, 1, H // (2 ** 3) - 2, W // (2 ** 3) - 2)).to(device)
 
             # Source -> Target
-            fake_target = G.forward(real_source)  # S ->[G]->F_S
+            pred_ru = G.forward(real_source)  # S ->[G]->F_S
+            fake_target = flow_warp(real_source, pred_ru.permute(0, 2, 3, 1), padding_mode='zeros')
 
             # Segmentation
             with torch.no_grad():
@@ -190,14 +191,15 @@ def main(args, device):
                     tblogger.add_image('Mask/Ist_m', vis_fake_target_m.type(torch.uint8), epoch * 10000 + i)
                     tblogger.add_image('Mask/Igt', vis_real_gt.type(torch.uint8), epoch * 10000 + i)
 
-            g_scheduler.step()
-            d_scheduler.step()
+        d_scheduler.step()
+        g_scheduler.step()
         if args.save:
             snapshot = dict(
                 G=G.state_dict(),
                 D=D.state_dict()
             )
             torch.save(snapshot, os.path.join(save_path, 'checkpoint.pth'))
+
 
 
 def denorm(x):
